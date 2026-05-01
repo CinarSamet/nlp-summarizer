@@ -1,0 +1,12 @@
+streamlit
+nltk
+numpy
+networkx
+scikit-learn
+matplotlib
+feedparser
+requests
+beautifulsoup4
+readability-lxml
+snowballstemmer
+pyvis
