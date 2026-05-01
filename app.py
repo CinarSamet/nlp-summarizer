@@ -20,6 +20,7 @@ import streamlit.components.v1 as components
 def download_nltk_data():
     nltk.download('punkt')
     nltk.download('stopwords')
+    nltk.download('punkt_tab')
 
 download_nltk_data()
 
