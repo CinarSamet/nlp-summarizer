@@ -1,356 +1,160 @@
 import streamlit as st
-import nltk
-import numpy as np
-import networkx as nx
-from sklearn.feature_extraction.text import TfidfVectorizer
-import matplotlib.pyplot as plt
-import feedparser
-import requests
-from bs4 import BeautifulSoup
-from readability import Document
-import re
-import snowballstemmer # <-- YENİ KÜTÜPHANE BURADA
-from nltk.corpus import stopwords
-from pyvis.network import Network
 import streamlit.components.v1 as components
 
-# DOWNLOADS
-
-@st.cache_resource
-def download_nltk_data():
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('punkt_tab')
-
-download_nltk_data()
-
-
-
-turkish_stopwords = set(stopwords.words('turkish'))
-
-stemmer = snowballstemmer.stemmer('turkish')
-
-def turkish_tokenizer(text):
-    text = text.lower()
-       
-    text = re.sub(r'[^a-zçğıöşü\s]', '', text)
-    
-    tokens = text.split()
-    
-    # Stemming
-    stems = [stemmer.stemWord(word) for word in tokens if word not in turkish_stopwords]
-    
-    return stems
-
-
-
-def highlight_text(sentences, selected):
-    return " ".join(
-        [f"<mark>{s}</mark>" if i in selected else s for i, s in enumerate(sentences)]
-    )
-
-
-def highlight_compare(sentences, tr_selected, tf_selected):
-    result = ""
-    for i, s in enumerate(sentences):
-        if i in tr_selected and i in tf_selected:
-            result += f"<mark style='background-color: violet'>{s}</mark> "
-        elif i in tr_selected:
-            result += f"<mark style='background-color: lightcoral'>{s}</mark> "
-        elif i in tf_selected:
-            result += f"<mark style='background-color: lightblue'>{s}</mark> "
-        else:
-            result += s + " "
-    return result
-
-
-def get_keywords(sentences, top_n=5):
-    vectorizer = TfidfVectorizer(stop_words=list(turkish_stopwords))
-    tfidf = vectorizer.fit_transform(sentences)
-
-    scores = np.array(tfidf.sum(axis=0)).flatten()
-    words = vectorizer.get_feature_names_out()
-
-    ranked = sorted(zip(scores, words), reverse=True)
-    return [w for _, w in ranked[:top_n]]
-
-
-def generate_headline(summary):
-    return summary.split(".")[0]
-
-
-# NEWS
-
-def get_full_article(url):
-    try:
-        r = requests.get(url, timeout=5)
-        doc = Document(r.text)
-        html = doc.summary()
-
-        soup = BeautifulSoup(html, "html.parser")
-        return " ".join([p.get_text() for p in soup.find_all("p")])
-    except:
-        return ""
-
-
-def get_news(source="BBC"):
-    feeds = {
-        "BBC": "https://feeds.bbci.co.uk/turkce/rss.xml",
-        "CNN": "http://rss.cnn.com/rss/edition.rss",
-        "TRT": "https://www.trthaber.com/sondakika.rss"
-    }
-
-    feed = feedparser.parse(feeds.get(source))
-    articles = []
-
-    for e in feed.entries[:5]:
-        text = get_full_article(e.link)
-
-        if len(text) < 200:
-            text = e.title + " " + e.get("description", "")
-
-        articles.append({"title": e.title, "text": text})
-
-    return articles
-
-
-# NLP CORE
-
-def sentence_tokenize(text):
-    return [s for s in nltk.sent_tokenize(text) if len(s.split()) > 5]
-
-
-def tfidf_summary(sentences, top_n):
-    vec = TfidfVectorizer(tokenizer=turkish_tokenizer, token_pattern=None)
-    tfidf = vec.fit_transform(sentences)
-
-    scores = np.array(tfidf.sum(axis=1)).flatten()
-    ranked = sorted(((scores[i], s) for i, s in enumerate(sentences)), reverse=True)
-
-    return " ".join([s for _, s in ranked[:top_n]])
-
-
-def tfidf_summary_with_index(sentences, top_n):
-    vec = TfidfVectorizer(tokenizer=turkish_tokenizer, token_pattern=None)
-    tfidf = vec.fit_transform(sentences)
-
-    scores = np.array(tfidf.sum(axis=1)).flatten()
-    ranked = sorted(((scores[i], i, s) for i, s in enumerate(sentences)), reverse=True)
-
-    selected = [i for _, i, _ in ranked[:top_n]]
-    summary = " ".join([s for _, _, s in ranked[:top_n]])
-
-    return summary, selected
-
-
-def textrank_summary(sentences, top_n):
-    vec = TfidfVectorizer(tokenizer=turkish_tokenizer, token_pattern=None)
-    tfidf = vec.fit_transform(sentences)
-
-    matrix = (tfidf * tfidf.T).toarray()
-    graph = nx.from_numpy_array(matrix)
-    scores = nx.pagerank(graph)
-
-    ranked = sorted(((scores[i], s, i) for i, s in enumerate(sentences)), reverse=True)
-
-    summary = " ".join([s for _, s, _ in ranked[:top_n]])
-    selected = [i for _, _, i in ranked[:top_n]]
-
-    return summary, graph, scores, selected
-
-
-# GRAPH HELPERS
-
-def draw_interactive_graph(nx_graph, scores, sentences, selected=None, font_size=40, base_size=30, multiplier=300):
-    net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black", cdn_resources="remote")
-    net.barnes_hut() 
-    
-    net.set_options(f"""
-    var options = {{
-      "configure": {{
-        "filter": ["physics"]
-      }},
-      "nodes": {{
-        "font": {{
-          "size": {font_size},
-          "face": "Tahoma",
-          "color": "#000000",
-          "vadjust": 15
-        }}
-      }}
-    }}
-    """)
-    
-    for i in range(len(scores)):
-        color = "#ff4b4b" if selected and i in selected else "#1f77b4"
-        
-        size = base_size + (float(scores[i]) * multiplier) 
-        hover_text = f"Skor: {scores[i]:.3f}<br><br>{sentences[i]}"
-        
-        net.add_node(i, label=str(i), title=hover_text, color=color, size=size)
-        
-    for u, v, data in nx_graph.edges(data=True):
-        net.add_edge(u, v, value=data.get('weight', 0.5))
-        
-    net.save_graph("graph.html")
-    with open("graph.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-
-def draw_interactive_overlay_graph(nx_graph, sentences, tr_selected, tf_selected, font_size=40, base_size=40):
-    net = Network(height="600px", width="100%", bgcolor="#ffffff", font_color="black", cdn_resources="remote")
-    net.barnes_hut() 
-    
-    net.set_options(f"""
-    var options = {{
-      "configure": {{
-        "filter": ["physics"]
-      }},
-      "nodes": {{
-        "font": {{
-          "size": {font_size},
-          "face": "Tahoma",
-          "color": "#000000",
-          "vadjust": 15
-        }}
-      }}
-    }}
-    """)
-    
-    for i in range(len(sentences)):
-        if i in tr_selected and i in tf_selected:
-            color = "#8A2BE2"
-            label_text = "Ortak Seçim"
-        elif i in tr_selected:
-            color = "#ff4b4b"
-            label_text = "Sadece TextRank"
-        elif i in tf_selected:
-            color = "#1f77b4"
-            label_text = "Sadece TF-IDF"
-        else:
-            color = "#cccccc"
-            label_text = "Seçilmedi"
-            
-        size = base_size 
-        hover_text = f"<b>{label_text}</b><br><br>{sentences[i]}"
-        
-        net.add_node(i, label=str(i), title=hover_text, color=color, size=size)
-        
-    for u, v, data in nx_graph.edges(data=True):
-        net.add_edge(u, v, value=data.get('weight', 0.5))
-        
-    net.save_graph("overlay_graph.html")
-    with open("overlay_graph.html", "r", encoding="utf-8") as f:
-        return f.read()
-    
-def draw_graph(graph, scores, selected=None):
-    plt.figure(figsize=(7, 5))
-    pos = nx.spring_layout(graph, seed=42)
-
-    if selected is None:
-        node_colors = ["lightblue"] * len(scores)
-    else:
-        node_colors = ["red" if i in selected else "lightblue" for i in range(len(scores))]
-
-    node_sizes = [scores[i] * 3000 for i in range(len(scores))]
-
-    nx.draw_networkx_nodes(graph, pos, node_color=node_colors, node_size=node_sizes)
-    nx.draw_networkx_edges(graph, pos, alpha=0.3)
-    nx.draw_networkx_labels(graph, pos)
-
-    plt.title("Graph")
-    plt.axis("off")
-    return plt
-
-
-def build_tfidf_graph(sentences, threshold=0.2):
-    vec = TfidfVectorizer(tokenizer=turkish_tokenizer, token_pattern=None)
-    tfidf = vec.fit_transform(sentences)
-
-    sim = (tfidf * tfidf.T).toarray()
-
-    # 🔥 weak connections remove
-    sim[sim < threshold] = 0
-
-    graph = nx.from_numpy_array(sim)
-    scores = np.sum(sim, axis=1)
-
-    return graph, scores
-
-
-def draw_overlay_graph(sentences, tr_selected, tf_selected):
-    vec = TfidfVectorizer(tokenizer=turkish_tokenizer, token_pattern=None)
-    tfidf = vec.fit_transform(sentences)
-
-    sim = (tfidf * tfidf.T).toarray()
-    graph = nx.from_numpy_array(sim)
-
-    pos = nx.spring_layout(graph, seed=42)
-
-    plt.figure(figsize=(7, 5))
-
-    colors = []
-    for i in range(len(sentences)):
-        if i in tr_selected and i in tf_selected:
-            colors.append("purple")
-        elif i in tr_selected:
-            colors.append("red")
-        elif i in tf_selected:
-            colors.append("blue")
-        else:
-            colors.append("lightgray")
-
-    nx.draw_networkx_nodes(graph, pos, node_color=colors, node_size=1000)
-    nx.draw_networkx_edges(graph, pos, alpha=0.2)
-    nx.draw_networkx_labels(graph, pos)
-
-    plt.title("Overlay Graph (TextRank vs TF-IDF)")
-    plt.axis("off")
-    return plt
-
-
-# UI
+# Diğer modüllerden importlar
+from data_scraper import get_news
+from nlp_preprocess import sentence_tokenize
+from nlp_algorithms import textrank_summary, tfidf_summary, tfidf_summary_with_index, get_keywords, generate_headline, calculate_rouge
+from visualizations import draw_interactive_graph, draw_interactive_overlay_graph, highlight_text, highlight_compare, build_tfidf_graph, draw_wordcloud
+from file_utils import process_uploaded_file, read_dataset
+
+st.set_page_config(page_title="NLP Summarizer", layout="wide") # Sayfayı genişletir
 
 st.title("🧠 NLP News Summarization Dashboard")
 
-st.sidebar.title("Ayarlar")
+st.sidebar.title("⚙️ Kontrol Paneli")
 
-app_mode = st.sidebar.selectbox("Mod", ["Manuel Metin", "Haber Dashboard"])
-source = st.sidebar.selectbox("Kaynak", ["BBC", "CNN", "TRT"])
-top_n = st.sidebar.slider("Özet Cümle Sayısı", 1, 5, 2)
+# MOD SEÇİMİ
+st.sidebar.markdown("Çalışma Modu")
+app_mode = st.sidebar.selectbox("Veri Kaynağı:", ["Manuel Metin", "Tekli Dosya Yükleme", "Veri Seti Yükleme", "Haber Dashboard"])
 
-# DİNAMİK GRAFİK AYARLARI 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🎨 Grafik Ayarları")
 
-ui_font_size = st.sidebar.slider("Yazı Boyutu", 10, 80, 60)
-ui_base_size = st.sidebar.slider("Taban Düğüm Boyutu", 10, 80, 40)
-ui_multiplier = st.sidebar.slider("Skor Çarpanı (Düğüm Büyümesi)", 100, 1000, 400)
-# ------------------------------------------
+with st.sidebar.expander("⚙️ Özetleme Ayarları", expanded=False):
+    algo_mode = st.selectbox("Algoritma Seçimi:", ["TextRank", "TF-IDF", "Both (Comparison)"])
+    top_n = st.slider("Özet Uzunluğu (Cümle):", 1, 5, 2)
+
+
+
+text = "" 
 
 if app_mode == "Haber Dashboard":
+    st.info("💡 Lütfen önce bir haber kaynağı, ardından özetlemek istediğiniz haberi seçin.")
+    
+    source = st.selectbox("🌐 Haber Kaynağı", ["BBC", "CNN", "TRT"])
+    
     articles = get_news(source)
-    titles = [a["title"] for a in articles]
+    if articles:
+        titles = [a["title"] for a in articles]
+        selected_title = st.selectbox("📰 Haber Seç", titles)
+        text = next((a["text"] for a in articles if a["title"] == selected_title), "")
 
+elif app_mode == "Tekli Dosya Yükleme":
+    st.info("💡 Desteklenen formatlar: PDF, DOCX (Word), TXT")
+    uploaded_file = st.file_uploader("Bir dosya yükleyin", type=["pdf", "docx", "txt"])
+    
+    if uploaded_file is not None:
+        text = process_uploaded_file(uploaded_file)
+        if text.strip():
+            st.success(f"✅ {uploaded_file.name} başarıyla okundu! Aşağıdan özetleyebilirsiniz.")
+            with st.expander("Yüklenen Metni İncele (İsteğe Bağlı)"):
+                st.write(text)
+        else:
+            st.error("Dosya okunamadı veya içi boş.")
 
-    selected_title = st.selectbox("Haber seç", titles)
-    text = next(a["text"] for a in articles if a["title"] == selected_title)
+elif app_mode == "Veri Seti Yükleme":
+    st.info("💡 Desteklenen formatlar: CSV, Excel (.xlsx, .xls)")
+    uploaded_dataset = st.file_uploader("Bir Haber Veri Seti Yükleyin", type=["csv", "xlsx", "xls"])
+    
+    if uploaded_dataset is not None:
+        df = read_dataset(uploaded_dataset)
+        
+        if df is not None and not df.empty:
+            st.success(f"✅ Veri seti başarıyla yüklendi! (Toplam {len(df)} satır bulundu)")
+            
+            # Dinamik Sütun Eşleştirme 
+            st.markdown("### ⚙️ Veri Seti Ayarları")
+            col1, col2 = st.columns(2)
+            
+            # Sütunları listele
+            columns = list(df.columns)
+            
+            title_col = col1.selectbox("Başlık Sütunu (Opsiyonel)", ["Seçmek İstemiyorum"] + columns)
+            text_col = col2.selectbox("Haber Metni Sütunu (Zorunlu)", columns, index=len(columns)-1) 
+            
+            st.markdown("### 📰 İşlem Yapılacak Haberi Seçin")
+            
+            if title_col != "Seçmek İstemiyorum":
+                # Başlığa göre haber seçimi
+                titles = df[title_col].astype(str).tolist()
+                selected_title = st.selectbox("Listeden Bir Haber Seçin:", titles)
+                
+                row_index = df[df[title_col] == selected_title].index[0]
+                text = str(df.loc[row_index, text_col])
+            else:
+                # Sadece indeks numarasına göre satır seçimi
+                selected_index = st.number_input("Özetlenecek Satır Numarası (Index):", min_value=0, max_value=len(df)-1, value=0)
+                text = str(df.loc[selected_index, text_col])
+                
+            with st.expander("Seçilen Metni İncele"):
+                st.write(text)
+                
+            # TOPLU ÖZETLEME VE İNDİRME KISMI 
+            st.markdown("---")
+            st.markdown("### 🚀 Toplu Özetleme ve Dışa Aktarma")
+            st.info(f"Seçili olan '{algo_mode}' algoritması ile tüm satırları otomatik özetleyip bilgisayarınıza indirebilirsiniz.")
+            
+            if st.button("Tüm Veri Setini Özetle"):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                summaries = []
+                total_rows = len(df)
+                
+                for i in range(total_rows):
+                    row_text = str(df.loc[i, text_col])
+                    
+                    if not row_text.strip() or len(row_text.split()) < 5:
+                        summaries.append("Metin çok kısa veya boş.")
+                    else:
+                        try:
+                            row_sentences = sentence_tokenize(row_text)
+                            
+                            if len(row_sentences) <= top_n:
+                                summaries.append(row_text)
+                            else:
+                                if algo_mode == "TextRank":
+                                    summary, _, _, _ = textrank_summary(row_sentences, top_n)
+                                elif algo_mode == "TF-IDF":
+                                    summary = tfidf_summary(row_sentences, top_n)
+                                else:
+                                    summary, _, _, _ = textrank_summary(row_sentences, top_n)
+                                
+                                summaries.append(summary)
+                        except Exception:
+                            summaries.append("Özetleme Sırasında Hata Oluştu")
+                    
+                    progress = (i + 1) / total_rows
+                    progress_bar.progress(progress)
+                    status_text.text(f"İşleniyor: {i + 1} / {total_rows} satır tamamlandı. Lütfen bekleyin...")
+                
+                df["Cikarilan_Ozet"] = summaries
+                st.success("🎉 Tüm veri seti başarıyla özetlendi!")
+                
+                csv_data = df.to_csv(index=False).encode('utf-8-sig')
+                
+                st.download_button(
+                    label="📥 Özetli Veri Setini İndir (CSV)",
+                    data=csv_data,
+                    file_name="ozetlenmis_haber_veri_seti.csv",
+                    mime="text/csv",
+                    help="Bu dosyayı doğrudan Excel ile açabilirsiniz."
+                )
+        else:
+            st.error("Dosya okunamadı veya içi boş.")
+
 else:
     text = st.text_area("Metni gir:", height=200)
 
-algo_mode = st.selectbox("Algoritma", ["TextRank", "TF-IDF", "Both (Comparison)"])
-
 
 # SESSION STATE 
-
 if "is_summarized" not in st.session_state:
     st.session_state.is_summarized = False
 
-if st.button("🚀 Özetle"):
+if st.button("🚀 Seçili Metni Özetle"):
     st.session_state.is_summarized = True
 
 # MAIN
-
 if st.session_state.is_summarized:
 
     if not text.strip():
@@ -385,6 +189,14 @@ if st.session_state.is_summarized:
                 summary = tr_summary
 
         with tab2:
+            with st.expander("🎨 Grafik Görünüm Ayarları (Tıklayıp Açabilirsiniz)"):
+                g_col1, g_col2, g_col3 = st.columns(3)
+                ui_font_size = g_col1.slider("Yazı Boyutu", 10, 80, 60)
+                ui_base_size = g_col2.slider("Taban Düğüm Boyutu", 10, 80, 40)
+                ui_multiplier = g_col3.slider("Skor Çarpanı", 100, 1000, 400)
+            
+            st.markdown("---")
+
             if algo_mode == "TextRank":
                 st.subheader("🕸️ İnteraktif TextRank Ağ Grafiği")
                 st.info("Düğümleri (noktaları) fareyle sürükleyebilir, üzerine gelip cümleleri okuyabilirsiniz!")
@@ -409,30 +221,48 @@ if st.session_state.is_summarized:
                 components.html(html_code, height=1250)
 
         with tab3:
-            st.metric("Cümle", len(sentences))
-            st.metric("Özet", top_n)
-            st.metric("Sıkıştırma", f"%{round(len(summary)/len(text)*100,2)}")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Cümle Sayısı", len(sentences))
+            col2.metric("Özet Cümle", top_n)
+            col3.metric("Sıkıştırma Oranı", f"%{round(len(summary)/len(text)*100,2)}")
 
-            st.subheader("Keywords")
+            st.markdown("---")
+            st.subheader("🔑 Anahtar Kelimeler")
             st.write(", ".join(get_keywords(sentences)))
 
-            st.subheader("Headline")
+            st.subheader("📰 Başlık Önerisi")
             st.info(generate_headline(summary))
+
+            st.markdown("---")
+            st.subheader("☁️ Kelime Bulutu (Orijinal Metin)")
+            # Kelime bulutu grafiğini çizdiriyoruz
+            wc_fig = draw_wordcloud(text)
+            st.pyplot(wc_fig)
+
+            st.markdown("---")
+            st.subheader("📈 ROUGE Başarı Metrikleri")
+            st.caption("ROUGE skorları, çıkarılan özetin orijinal metin içerisindeki bilgi yoğunluğunu (örtüşmeyi) ölçer. 1.0'a ne kadar yakınsa o kadar çok anahtar bilgi tutulmuş demektir.")
+            
+            scores = calculate_rouge(text, summary)
+            if scores:
+                r1_col, r2_col, rl_col = st.columns(3)
+                # F-Score (f) değerlerini gösteriyoruz
+                r1_col.metric("ROUGE-1 (Tekli Kelime)", f"{scores['rouge-1']['f']:.2f}")
+                r2_col.metric("ROUGE-2 (İkili Kelime)", f"{scores['rouge-2']['f']:.2f}")
+                rl_col.metric("ROUGE-L (Uzun Cümle)", f"{scores['rouge-l']['f']:.2f}")
 
         with tab4:
             if algo_mode == "Both (Comparison)":
-                st.markdown(highlight_compare(sentences, tr_selected, tf_selected),
-                            unsafe_allow_html=True)
+                st.markdown(highlight_compare(sentences, tr_selected, tf_selected), unsafe_allow_html=True)
                 st.markdown("""
                 🔴 TextRank  
                 🔵 TF-IDF  
                 🟣 Ortak
                 """)
             elif algo_mode == "TextRank":
-                st.markdown(highlight_text(sentences, selected),
-                            unsafe_allow_html=True)
+                st.markdown(highlight_text(sentences, selected), unsafe_allow_html=True)
             else:
                 st.write(text)
 
 st.markdown("---")
-st.caption("🚀 NLP Summarization Project - Final Version")
+st.caption("🚀 NLP Summarization Project - Modular Version")

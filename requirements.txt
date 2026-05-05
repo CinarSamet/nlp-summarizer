@@ -10,3 +10,9 @@ beautifulsoup4
 readability-lxml
 snowballstemmer
 pyvis
+wordcloud
+rouge
+pypdf
+python-docx
+pandas
+openpyxl

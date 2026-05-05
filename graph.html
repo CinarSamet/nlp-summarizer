@@ -1,0 +1,321 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script>function neighbourhoodHighlight(params) {
+  // console.log("in nieghbourhoodhighlight");
+  allNodes = nodes.get({ returnType: "Object" });
+  // originalNodes = JSON.parse(JSON.stringify(allNodes));
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    highlightActive = true;
+    var i, j;
+    var selectedNode = params.nodes[0];
+    var degrees = 2;
+
+    // mark all nodes as hard to read.
+    for (let nodeId in allNodes) {
+      // nodeColors[nodeId] = allNodes[nodeId].color;
+      allNodes[nodeId].color = "rgba(200,200,200,0.5)";
+      if (allNodes[nodeId].hiddenLabel === undefined) {
+        allNodes[nodeId].hiddenLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+    var connectedNodes = network.getConnectedNodes(selectedNode);
+    var allConnectedNodes = [];
+
+    // get the second degree nodes
+    for (i = 1; i < degrees; i++) {
+      for (j = 0; j < connectedNodes.length; j++) {
+        allConnectedNodes = allConnectedNodes.concat(
+          network.getConnectedNodes(connectedNodes[j])
+        );
+      }
+    }
+
+    // all second degree nodes get a different color and their label back
+    for (i = 0; i < allConnectedNodes.length; i++) {
+      // allNodes[allConnectedNodes[i]].color = "pink";
+      allNodes[allConnectedNodes[i]].color = "rgba(150,150,150,0.75)";
+      if (allNodes[allConnectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[allConnectedNodes[i]].label =
+          allNodes[allConnectedNodes[i]].hiddenLabel;
+        allNodes[allConnectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // all first degree nodes get their own color and their label back
+    for (i = 0; i < connectedNodes.length; i++) {
+      // allNodes[connectedNodes[i]].color = undefined;
+      allNodes[connectedNodes[i]].color = nodeColors[connectedNodes[i]];
+      if (allNodes[connectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[connectedNodes[i]].label =
+          allNodes[connectedNodes[i]].hiddenLabel;
+        allNodes[connectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // the main node gets its own color and its label back.
+    // allNodes[selectedNode].color = undefined;
+    allNodes[selectedNode].color = nodeColors[selectedNode];
+    if (allNodes[selectedNode].hiddenLabel !== undefined) {
+      allNodes[selectedNode].label = allNodes[selectedNode].hiddenLabel;
+      allNodes[selectedNode].hiddenLabel = undefined;
+    }
+  } else if (highlightActive === true) {
+    // console.log("highlightActive was true");
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      // allNodes[nodeId].color = "purple";
+      allNodes[nodeId].color = nodeColors[nodeId];
+      // delete allNodes[nodeId].color;
+      if (allNodes[nodeId].hiddenLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].hiddenLabel;
+        allNodes[nodeId].hiddenLabel = undefined;
+      }
+    }
+    highlightActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    // console.log("Nothing was selected");
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        // allNodes[nodeId].color = {};
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function filterHighlight(params) {
+  allNodes = nodes.get({ returnType: "Object" });
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    filterActive = true;
+    let selectedNodes = params.nodes;
+
+    // hiding all nodes and saving the label
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = true;
+      if (allNodes[nodeId].savedLabel === undefined) {
+        allNodes[nodeId].savedLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+
+    for (let i=0; i < selectedNodes.length; i++) {
+      allNodes[selectedNodes[i]].hidden = false;
+      if (allNodes[selectedNodes[i]].savedLabel !== undefined) {
+        allNodes[selectedNodes[i]].label = allNodes[selectedNodes[i]].savedLabel;
+        allNodes[selectedNodes[i]].savedLabel = undefined;
+      }
+    }
+
+  } else if (filterActive === true) {
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = false;
+      if (allNodes[nodeId].savedLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].savedLabel;
+        allNodes[nodeId].savedLabel = undefined;
+      }
+    }
+    filterActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function selectNode(nodes) {
+  network.selectNodes(nodes);
+  neighbourhoodHighlight({ nodes: nodes });
+  return nodes;
+}
+
+function selectNodes(nodes) {
+  network.selectNodes(nodes);
+  filterHighlight({nodes: nodes});
+  return nodes;
+}
+
+function highlightFilter(filter) {
+  let selectedNodes = []
+  let selectedProp = filter['property']
+  if (filter['item'] === 'node') {
+    let allNodes = nodes.get({ returnType: "Object" });
+    for (let nodeId in allNodes) {
+      if (allNodes[nodeId][selectedProp] && filter['value'].includes((allNodes[nodeId][selectedProp]).toString())) {
+        selectedNodes.push(nodeId)
+      }
+    }
+  }
+  else if (filter['item'] === 'edge'){
+    let allEdges = edges.get({returnType: 'object'});
+    // check if the selected property exists for selected edge and select the nodes connected to the edge
+    for (let edge in allEdges) {
+      if (allEdges[edge][selectedProp] && filter['value'].includes((allEdges[edge][selectedProp]).toString())) {
+        selectedNodes.push(allEdges[edge]['from'])
+        selectedNodes.push(allEdges[edge]['to'])
+      }
+    }
+  }
+  selectNodes(selectedNodes)
+}</script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+            
+            
+            
+            
+            
+
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 600px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "#1f77b4", "font": {"color": "black"}, "id": 0, "label": "0", "shape": "dot", "size": 59.22750476962803, "title": "Skor: 0.048\u003cbr\u003e\u003cbr\u003eFenerbah\u00e7e\u0027de Mehmet Ali Ayd\u0131nlar ba\u015fkan aday\u0131 olmuyor Kaynak, Serhat Cagdas/Anadolu Agency/Getty Images G\u00fcncelleme 6 saat \u00f6nce Okuma s\u00fcresi 2 dk Fenerbah\u00e7e\u0027de ismi 6-7 Haziran\u0027da yap\u0131lacak se\u00e7imde adaylar aras\u0131nda ge\u00e7en Mehmet Ali Ayd\u0131nlar, ba\u015fkan aday\u0131 olmayaca\u011f\u0131n\u0131 a\u00e7\u0131klad\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 1, "label": "1", "shape": "dot", "size": 55.008052751121845, "title": "Skor: 0.038\u003cbr\u003e\u003cbr\u003eAyd\u0131nlar, Anadolu Ajans\u0131\u0027na yapt\u0131\u011f\u0131 yaz\u0131l\u0131 a\u00e7\u0131klamada, ismiyle ilgili tart\u0131\u015fmalar\u0131n \"Fenerbah\u00e7e\u0027nin birlik duygusuna\" katk\u0131 sa\u011flamad\u0131\u011f\u0131n\u0131 s\u00f6yledi."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 2, "label": "2", "shape": "dot", "size": 58.169055691174584, "title": "Skor: 0.045\u003cbr\u003e\u003cbr\u003eAyd\u0131nlar 2013 y\u0131l\u0131nda Fenerbah\u00e7e ba\u015fkanl\u0131\u011f\u0131na aday olmu\u015f ancak Aziz Y\u0131ld\u0131r\u0131m\u0027a kar\u015f\u0131 kaybetmi\u015fti."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 3, "label": "3", "shape": "dot", "size": 54.46369436523824, "title": "Skor: 0.036\u003cbr\u003e\u003cbr\u003eFenerbah\u00e7e, sezonun 34\u0027\u00fcnc\u00fc haftas\u0131nda Rizespor\u0027la 2-2 berabere kalm\u0131\u015f, ard\u0131ndan da deplasmanda Galatasaray\u0027a 3-0 yenildi ve ligin bitmesine son \u00fc\u00e7 hafta kala \u015fampiyonluk \u015fanslar\u0131n\u0131 mucizelere b\u0131rakt\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 4, "label": "4", "shape": "dot", "size": 53.30071128182813, "title": "Skor: 0.033\u003cbr\u003e\u003cbr\u003eKul\u00fcb\u00fcn sportif direkt\u00f6r\u00fc Devin \u00d6zek ve futbol koordinat\u00f6r\u00fc Berke \u00c7elebi ile de yollar\u0131n ayr\u0131lmas\u0131 kararla\u015ft\u0131r\u0131ld\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 5, "label": "5", "shape": "dot", "size": 54.231882880198455, "title": "Skor: 0.036\u003cbr\u003e\u003cbr\u003eFenerbah\u00e7e Avrupa Ligi ve T\u00fcrkiye Kupas\u0131\u0027ndan da elendi."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 6, "label": "6", "shape": "dot", "size": 56.870635686197986, "title": "Skor: 0.042\u003cbr\u003e\u003cbr\u003eBa\u015fkan Saadettin Saran\u0027\u0131n se\u00e7imde aday olmas\u0131 beklenmiyor."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 7, "label": "7", "shape": "dot", "size": 53.795784715745455, "title": "Skor: 0.034\u003cbr\u003e\u003cbr\u003e\u015eu ana kadar yaln\u0131zca Bar\u0131\u015f G\u00f6kt\u00fcrk ba\u015fkan adayl\u0131\u011f\u0131n\u0131 resmi olarak a\u00e7\u0131klad\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 8, "label": "8", "shape": "dot", "size": 58.18883799671265, "title": "Skor: 0.045\u003cbr\u003e\u003cbr\u003eSaran se\u00e7im karar\u0131n\u0131 kul\u00fcb\u00fcn internet sitesinden yaz\u0131l\u0131 a\u00e7\u0131klamayla duyurdu."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 9, "label": "9", "shape": "dot", "size": 55.586937760970486, "title": "Skor: 0.039\u003cbr\u003e\u003cbr\u003eA\u00e7\u0131klamas\u0131nda, \"G\u00f6nl\u00fcmden ge\u00e7en, bu g\u00f6revi camiam\u0131za \u015fampiyonluk mutlulu\u011funu ya\u015fatarak tamamlamakt\u0131\" diyen Saran, \"Bu koltu\u011fa gelmek kadar, zaman\u0131 geldi\u011finde b\u0131rakabilmek de bir erdemdir\" ifadelerini kulland\u0131."}, {"color": "#ff4b4b", "font": {"color": "black"}, "id": 10, "label": "10", "shape": "dot", "size": 63.57205988175293, "title": "Skor: 0.059\u003cbr\u003e\u003cbr\u003eSaran Eyl\u00fcl ay\u0131nda \u00e7eki\u015fmeli ge\u00e7en bir se\u00e7imin ard\u0131ndan rakibi, eski Fenerbah\u00e7e Ba\u015fkan\u0131 Ali Ko\u00e7\u0027u az farkla ge\u00e7meyi ba\u015fararak kul\u00fcb\u00fcn ba\u015fkan\u0131 se\u00e7ilmi\u015fti."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 11, "label": "11", "shape": "dot", "size": 55.11714510854556, "title": "Skor: 0.038\u003cbr\u003e\u003cbr\u003eSezonun ilk yar\u0131s\u0131nda bir uyu\u015fturucu soru\u015fturmas\u0131nda iki kez g\u00f6zalt\u0131na al\u0131nan ve adli kontrol karar\u0131yla serbest b\u0131rak\u0131lan Sadettin Saran, sezon sonunda ola\u011fan\u00fcst\u00fc kongreye gidece\u011fini ilan etmi\u015fti."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 12, "label": "12", "shape": "dot", "size": 54.99102069471001, "title": "Skor: 0.037\u003cbr\u003e\u003cbr\u003eSaran 28 Nisan\u0027daki yaz\u0131l\u0131 a\u00e7\u0131klamas\u0131nda da \"Fenerbah\u00e7e\u0027ye hizmet etmek, bazen kalmay\u0131 de\u011fil, gerekti\u011finde kenara \u00e7ekilmeyi de bilmeyi gerektirir\" ifadelerini kulland\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 13, "label": "13", "shape": "dot", "size": 54.39159432275199, "title": "Skor: 0.036\u003cbr\u003e\u003cbr\u003e\"Ben ve yol arkada\u015flar\u0131m, bu g\u00f6revi devrettikten sonra da kul\u00fcb\u00fcm\u00fcz\u00fcn yan\u0131nda, onu ileriye ta\u015f\u0131yan bir duru\u015fun par\u00e7as\u0131 olmaya devam edece\u011fiz\" dedi."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 14, "label": "14", "shape": "dot", "size": 58.42898314649298, "title": "Skor: 0.046\u003cbr\u003e\u003cbr\u003eSaran, sezon ba\u015f\u0131nda se\u00e7imi kazanmas\u0131n\u0131n ard\u0131ndan yapt\u0131\u011f\u0131 konu\u015fmada \"Hayalim kupay\u0131 \u00fc\u00e7 ba\u015fkan birlikte kald\u0131rmak\" demi\u015fti."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 15, "label": "15", "shape": "dot", "size": 57.149613435030474, "title": "Skor: 0.043\u003cbr\u003e\u003cbr\u003eAday olmamas\u0131 durumunda Sadettin Saran, bir sezon g\u00f6revde kalarak 1994\u0027te yedi aydan k\u0131sa bir s\u00fcre g\u00f6revde kalan Hasan \u00d6zayd\u0131n\u0027dan bu yana en k\u0131sa s\u00fcre g\u00f6rev yapan ba\u015fkan olacak."}, {"color": "#ff4b4b", "font": {"color": "black"}, "id": 16, "label": "16", "shape": "dot", "size": 59.57141163291915, "title": "Skor: 0.049\u003cbr\u003e\u003cbr\u003eO tarihten sonra kul\u00fcpte d\u00f6rt y\u0131l Ali \u015een, 20 y\u0131l Aziz Y\u0131ld\u0131r\u0131m ve yedi y\u0131l Ali Ko\u00e7 ba\u015fkanl\u0131k yapm\u0131\u015ft\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 17, "label": "17", "shape": "dot", "size": 54.041962121284094, "title": "Skor: 0.035\u003cbr\u003e\u003cbr\u003e1964 y\u0131l\u0131nda ABD\u0027de Denver kentinde d\u00fcnyaya gelen Sadettin Saran, Kentucky \u00dcniversitesi Makine M\u00fchendisli\u011fi B\u00f6l\u00fcm\u00fc\u0027nden mezun oldu."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 18, "label": "18", "shape": "dot", "size": 53.53686701205656, "title": "Skor: 0.034\u003cbr\u003e\u003cbr\u003e1984-1985 y\u0131llar\u0131nda T\u00fcrk Milli Y\u00fczme Tak\u0131m\u0131 kaptanl\u0131\u011f\u0131n\u0131 \u00fcstlenen Saran, bu d\u00f6nemde 50 metre serbest y\u00fczme rekoru, Master Cumhuriyet \u015eampiyonas\u0131\u0027nda da 50 metre serbest ve 50 metre kelebekte T\u00fcrkiye rekoru k\u0131rd\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 19, "label": "19", "shape": "dot", "size": 58.36619954352196, "title": "Skor: 0.046\u003cbr\u003e\u003cbr\u003eKaynak, Serhat Cetinkaya/Anadolu / Getty Images Ba\u015fta medya olmak \u00fczere be\u015f ana sekt\u00f6rde, 33 \u015firketle faaliyet g\u00f6steren Saran Group\u0027un y\u00f6netim kurulu ba\u015fkan\u0131 Sadettin Saran, Aziz Y\u0131ld\u0131r\u0131m\u0027\u0131n ba\u015fkanl\u0131\u011f\u0131 d\u00f6neminde Fenerbah\u00e7e\u0027de futbol \u015fube sorumlusu olarak g\u00f6rev yapt\u0131."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 20, "label": "20", "shape": "dot", "size": 56.48410374610525, "title": "Skor: 0.041\u003cbr\u003e\u003cbr\u003eSaran, Y\u0131ld\u0131r\u0131m ve y\u00f6netimiyle g\u00f6r\u00fc\u015f ayr\u0131l\u0131klar\u0131n\u0131n ard\u0131ndan kul\u00fcpten ihra\u00e7 edildi."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 21, "label": "21", "shape": "dot", "size": 56.50458143141312, "title": "Skor: 0.041\u003cbr\u003e\u003cbr\u003eYarg\u0131tay, sekiz y\u0131l s\u00fcren hukuk m\u00fccadelesinin ard\u0131ndan Saran\u0027\u0131n kul\u00fcpten haks\u0131z yere ihra\u00e7 edildi\u011fine karar verdi."}, {"color": "#ff4b4b", "font": {"color": "black"}, "id": 22, "label": "22", "shape": "dot", "size": 60.09911784384077, "title": "Skor: 0.050\u003cbr\u003e\u003cbr\u003eHaziran 2024\u0027te Fenerbah\u00e7e\u0027de ba\u015fkan aday\u0131 olan Saran, daha sonra Ali Ko\u00e7 lehine adayl\u0131ktan \u00e7ekildi."}, {"color": "#1f77b4", "font": {"color": "black"}, "id": 23, "label": "23", "shape": "dot", "size": 58.90224218075922, "title": "Skor: 0.047\u003cbr\u003e\u003cbr\u003eSaran, 21 Eyl\u00fcl 2025\u0027te ise 12 bin 325 oyla Ali Ko\u00e7\u0027u 257 oy farkla yenerek Fenerbah\u00e7e Ba\u015fkan\u0131 se\u00e7ilmi\u015fti."}]);
+                  edges = new vis.DataSet([{"from": 0, "to": 0, "value": 0.9999999999999996}, {"from": 0, "to": 1, "value": 0.13015943862335472}, {"from": 0, "to": 2, "value": 0.15202353069276878}, {"from": 0, "to": 3, "value": 0.02079705548120765}, {"from": 0, "to": 5, "value": 0.04374122302382852}, {"from": 0, "to": 6, "value": 0.13412141262222507}, {"from": 0, "to": 7, "value": 0.08446735588230543}, {"from": 0, "to": 8, "value": 0.03451763695245573}, {"from": 0, "to": 9, "value": 0.027167505735769468}, {"from": 0, "to": 10, "value": 0.18334164069182443}, {"from": 0, "to": 12, "value": 0.024944832016274582}, {"from": 0, "to": 14, "value": 0.056873896857838294}, {"from": 0, "to": 15, "value": 0.037806914584603835}, {"from": 0, "to": 16, "value": 0.08816762480909118}, {"from": 0, "to": 19, "value": 0.11854001150360254}, {"from": 0, "to": 22, "value": 0.26887375534145397}, {"from": 0, "to": 23, "value": 0.12341876519530351}, {"from": 1, "to": 1, "value": 0.9999999999999996}, {"from": 1, "to": 2, "value": 0.09403346700061327}, {"from": 1, "to": 3, "value": 0.016726206578363993}, {"from": 1, "to": 5, "value": 0.03517924606913454}, {"from": 1, "to": 8, "value": 0.13979936797605874}, {"from": 1, "to": 9, "value": 0.03708552975835454}, {"from": 1, "to": 10, "value": 0.020799077655209754}, {"from": 1, "to": 12, "value": 0.10980193627894916}, {"from": 1, "to": 14, "value": 0.13459208046981336}, {"from": 1, "to": 19, "value": 0.014641114875291369}, {"from": 1, "to": 22, "value": 0.02609089043107052}, {"from": 1, "to": 23, "value": 0.025556661660080783}, {"from": 2, "to": 2, "value": 0.9999999999999997}, {"from": 2, "to": 3, "value": 0.021474916948778785}, {"from": 2, "to": 5, "value": 0.04516692916088629}, {"from": 2, "to": 6, "value": 0.09409328358104734}, {"from": 2, "to": 10, "value": 0.026704110293280747}, {"from": 2, "to": 12, "value": 0.02575788655921921}, {"from": 2, "to": 15, "value": 0.0375630423370852}, {"from": 2, "to": 16, "value": 0.31317870957163135}, {"from": 2, "to": 17, "value": 0.12697367578559504}, {"from": 2, "to": 18, "value": 0.03021434069215605}, {"from": 2, "to": 19, "value": 0.1483670062334935}, {"from": 2, "to": 20, "value": 0.07913433975585416}, {"from": 2, "to": 21, "value": 0.049949833599136045}, {"from": 2, "to": 22, "value": 0.03349831311133609}, {"from": 2, "to": 23, "value": 0.03281241231040416}, {"from": 3, "to": 3, "value": 1.0}, {"from": 3, "to": 5, "value": 0.1081397444010726}, {"from": 3, "to": 9, "value": 0.041411882659786924}, {"from": 3, "to": 10, "value": 0.04510005377155368}, {"from": 3, "to": 11, "value": 0.09161570893774261}, {"from": 3, "to": 12, "value": 0.015667801517169837}, {"from": 3, "to": 14, "value": 0.12111175175196266}, {"from": 3, "to": 15, "value": 0.022848547390152737}, {"from": 3, "to": 19, "value": 0.011434206199193277}, {"from": 3, "to": 20, "value": 0.04164377353558798}, {"from": 3, "to": 21, "value": 0.03038308585014}, {"from": 3, "to": 22, "value": 0.020376086360259647}, {"from": 3, "to": 23, "value": 0.01995887209911434}, {"from": 4, "to": 4, "value": 1.0}, {"from": 4, "to": 8, "value": 0.0460420237730506}, {"from": 4, "to": 10, "value": 0.030640962372449433}, {"from": 4, "to": 13, "value": 0.08754950103440397}, {"from": 4, "to": 16, "value": 0.02940102680743313}, {"from": 4, "to": 19, "value": 0.04587933595291131}, {"from": 4, "to": 20, "value": 0.044218698016639926}, {"from": 4, "to": 21, "value": 0.032261737685055275}, {"from": 5, "to": 5, "value": 0.9999999999999999}, {"from": 5, "to": 10, "value": 0.034163709441952524}, {"from": 5, "to": 12, "value": 0.032953164984094604}, {"from": 5, "to": 14, "value": 0.11053770764702273}, {"from": 5, "to": 18, "value": 0.06388536590550484}, {"from": 5, "to": 19, "value": 0.02404889307100666}, {"from": 5, "to": 22, "value": 0.04285582344299986}, {"from": 5, "to": 23, "value": 0.04197832123784543}, {"from": 6, "to": 6, "value": 0.9999999999999999}, {"from": 6, "to": 7, "value": 0.048676050082656415}, {"from": 6, "to": 8, "value": 0.12537406321349728}, {"from": 6, "to": 9, "value": 0.01898432938572162}, {"from": 6, "to": 10, "value": 0.16020119422480583}, {"from": 6, "to": 11, "value": 0.01750872405176511}, {"from": 6, "to": 12, "value": 0.02108872305331526}, {"from": 6, "to": 14, "value": 0.13424182647379604}, {"from": 6, "to": 15, "value": 0.09002232893859449}, {"from": 6, "to": 17, "value": 0.022059235960637802}, {"from": 6, "to": 18, "value": 0.01392459590585135}, {"from": 6, "to": 19, "value": 0.05779923045533389}, {"from": 6, "to": 20, "value": 0.03155162414807419}, {"from": 6, "to": 21, "value": 0.023019904869645322}, {"from": 6, "to": 22, "value": 0.07557386837277891}, {"from": 6, "to": 23, "value": 0.07402644188971605}, {"from": 7, "to": 7, "value": 1.0}, {"from": 7, "to": 9, "value": 0.06530628544659244}, {"from": 7, "to": 10, "value": 0.05673461790166265}, {"from": 7, "to": 14, "value": 0.03126019165072917}, {"from": 7, "to": 15, "value": 0.019431998336863127}, {"from": 7, "to": 19, "value": 0.12585448513908565}, {"from": 7, "to": 22, "value": 0.1299305032551587}, {"from": 7, "to": 23, "value": 0.03485605126734002}, {"from": 8, "to": 8, "value": 1.0}, {"from": 8, "to": 9, "value": 0.0707417148041359}, {"from": 8, "to": 10, "value": 0.11496015623098253}, {"from": 8, "to": 11, "value": 0.07414425598883212}, {"from": 8, "to": 12, "value": 0.14942048072726818}, {"from": 8, "to": 13, "value": 0.03828014533137299}, {"from": 8, "to": 14, "value": 0.08051633683154996}, {"from": 8, "to": 15, "value": 0.013115121218266445}, {"from": 8, "to": 16, "value": 0.04019962061945141}, {"from": 8, "to": 17, "value": 0.019317249040694873}, {"from": 8, "to": 18, "value": 0.012193753554490448}, {"from": 8, "to": 19, "value": 0.026954609869697263}, {"from": 8, "to": 20, "value": 0.08808934228563584}, {"from": 8, "to": 21, "value": 0.14159350434971427}, {"from": 8, "to": 22, "value": 0.024016947435791764}, {"from": 8, "to": 23, "value": 0.023525184061695917}, {"from": 9, "to": 9, "value": 1.0}, {"from": 9, "to": 10, "value": 0.08465958611065132}, {"from": 9, "to": 11, "value": 0.033812082882293704}, {"from": 9, "to": 12, "value": 0.14475262224650282}, {"from": 9, "to": 13, "value": 0.06137712429933751}, {"from": 9, "to": 14, "value": 0.012191904929641749}, {"from": 9, "to": 15, "value": 0.12427837440701726}, {"from": 9, "to": 17, "value": 0.01116272859554421}, {"from": 9, "to": 18, "value": 0.00704632223786007}, {"from": 9, "to": 19, "value": 0.04092812699119841}, {"from": 9, "to": 20, "value": 0.015966201990949995}, {"from": 9, "to": 21, "value": 0.01164885995206824}, {"from": 9, "to": 22, "value": 0.013878511653207484}, {"from": 9, "to": 23, "value": 0.013594339664396}, {"from": 10, "to": 10, "value": 0.9999999999999997}, {"from": 10, "to": 11, "value": 0.038939900260390986}, {"from": 10, "to": 12, "value": 0.031772982685709966}, {"from": 10, "to": 13, "value": 0.058262673548221004}, {"from": 10, "to": 14, "value": 0.14242535920585822}, {"from": 10, "to": 15, "value": 0.12915966766750855}, {"from": 10, "to": 16, "value": 0.13541384971768566}, {"from": 10, "to": 17, "value": 0.012855627370176934}, {"from": 10, "to": 18, "value": 0.008114941812370031}, {"from": 10, "to": 19, "value": 0.06364835955112595}, {"from": 10, "to": 20, "value": 0.11040758020065533}, {"from": 10, "to": 21, "value": 0.08055281025087742}, {"from": 10, "to": 22, "value": 0.19448257099400135}, {"from": 10, "to": 23, "value": 0.40911331842179627}, {"from": 11, "to": 11, "value": 0.9999999999999991}, {"from": 11, "to": 12, "value": 0.009842137328781532}, {"from": 11, "to": 13, "value": 0.02625676361744269}, {"from": 11, "to": 14, "value": 0.08445009496723622}, {"from": 11, "to": 15, "value": 0.11461852135430074}, {"from": 11, "to": 17, "value": 0.04380817014859227}, {"from": 11, "to": 18, "value": 0.06699443367284072}, {"from": 11, "to": 19, "value": 0.03774688412135625}, {"from": 11, "to": 20, "value": 0.014725188292641928}, {"from": 11, "to": 21, "value": 0.051953027724324176}, {"from": 11, "to": 22, "value": 0.012799769001478462}, {"from": 11, "to": 23, "value": 0.012537685003974517}, {"from": 12, "to": 12, "value": 0.9999999999999994}, {"from": 12, "to": 14, "value": 0.01354336523190233}, {"from": 12, "to": 15, "value": 0.00841884316009039}, {"from": 12, "to": 17, "value": 0.012400105744467755}, {"from": 12, "to": 18, "value": 0.007827399914921948}, {"from": 12, "to": 19, "value": 0.031017322175058377}, {"from": 12, "to": 20, "value": 0.017736039296372356}, {"from": 12, "to": 21, "value": 0.012940124269060901}, {"from": 12, "to": 22, "value": 0.03985683517622308}, {"from": 12, "to": 23, "value": 0.039040739300615176}, {"from": 13, "to": 13, "value": 0.9999999999999999}, {"from": 13, "to": 15, "value": 0.12280162118094255}, {"from": 13, "to": 16, "value": 0.06729430794620768}, {"from": 13, "to": 19, "value": 0.026677656766474264}, {"from": 13, "to": 20, "value": 0.03676420034846175}, {"from": 13, "to": 21, "value": 0.026822974014218116}, {"from": 13, "to": 22, "value": 0.056018737288941925}, {"from": 14, "to": 14, "value": 1.0}, {"from": 14, "to": 15, "value": 0.057813139124617136}, {"from": 14, "to": 17, "value": 0.014166637240023195}, {"from": 14, "to": 18, "value": 0.008942499153828568}, {"from": 14, "to": 19, "value": 0.08312344175019512}, {"from": 14, "to": 20, "value": 0.07732778214332768}, {"from": 14, "to": 21, "value": 0.0564179574517628}, {"from": 14, "to": 22, "value": 0.048534209433764346}, {"from": 14, "to": 23, "value": 0.04754043840378518}, {"from": 15, "to": 15, "value": 0.9999999999999999}, {"from": 15, "to": 16, "value": 0.03898108538147633}, {"from": 15, "to": 17, "value": 0.03747296967021813}, {"from": 15, "to": 18, "value": 0.0055588471953767855}, {"from": 15, "to": 19, "value": 0.10307504388245912}, {"from": 15, "to": 20, "value": 0.012595744866923038}, {"from": 15, "to": 21, "value": 0.009189791537770631}, {"from": 15, "to": 22, "value": 0.07216715081825384}, {"from": 15, "to": 23, "value": 0.07068947919990407}, {"from": 16, "to": 16, "value": 0.9999999999999997}, {"from": 16, "to": 17, "value": 0.10421897411129635}, {"from": 16, "to": 18, "value": 0.06578682520154819}, {"from": 16, "to": 19, "value": 0.09403860576357487}, {"from": 16, "to": 20, "value": 0.0960417241459637}, {"from": 16, "to": 21, "value": 0.136925613496984}, {"from": 16, "to": 22, "value": 0.19513479743312856}, {"from": 16, "to": 23, "value": 0.13351614018910368}, {"from": 17, "to": 17, "value": 0.9999999999999997}, {"from": 17, "to": 18, "value": 0.031246057911034734}, {"from": 17, "to": 19, "value": 0.047557287507076}, {"from": 17, "to": 20, "value": 0.01855226012768548}, {"from": 17, "to": 21, "value": 0.051655450939240115}, {"from": 17, "to": 22, "value": 0.016126424964519662}, {"from": 17, "to": 23, "value": 0.01579622541797624}, {"from": 18, "to": 18, "value": 1.0}, {"from": 18, "to": 19, "value": 0.011424717696696016}, {"from": 18, "to": 20, "value": 0.01171086459563803}, {"from": 18, "to": 21, "value": 0.03260680841108567}, {"from": 18, "to": 22, "value": 0.010179588787103075}, {"from": 18, "to": 23, "value": 0.009971154765992057}, {"from": 19, "to": 19, "value": 0.9999999999999996}, {"from": 19, "to": 20, "value": 0.06802183283240885}, {"from": 19, "to": 21, "value": 0.01888714877750818}, {"from": 19, "to": 22, "value": 0.06009018121325958}, {"from": 19, "to": 23, "value": 0.05885979378194825}, {"from": 20, "to": 20, "value": 1.0}, {"from": 20, "to": 21, "value": 0.20635982879274736}, {"from": 20, "to": 22, "value": 0.023065844177040735}, {"from": 20, "to": 23, "value": 0.022593555290653513}, {"from": 21, "to": 21, "value": 0.9999999999999998}, {"from": 21, "to": 22, "value": 0.016828722863889374}, {"from": 21, "to": 23, "value": 0.016484143289012303}, {"from": 22, "to": 22, "value": 0.9999999999999998}, {"from": 22, "to": 23, "value": 0.27982310805808086}, {"from": 23, "to": 23, "value": 0.9999999999999999}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"configure": {"filter": ["physics"]}, "nodes": {"font": {"size": 60, "face": "Tahoma", "color": "#000000", "vadjust": 15}}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>

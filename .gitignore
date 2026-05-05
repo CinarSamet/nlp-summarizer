@@ -1,0 +1,17 @@
+# PyVis Generated Graphs
+graph.html
+overlay_graph.html
+
+# Virtual Environment
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# OS Files
+.DS_Store
+
+# Streamlit/Secrets
+.streamlit/secrets.toml
